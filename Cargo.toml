@@ -19,6 +19,8 @@ jobsteal = "0.5.1"
 error-chain = "0.10"
 log = "0.3"
 # clippy = "*"
+rand = "*"
+ordered-float = "*"
 
 [profile.release]
 lto = true

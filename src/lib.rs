@@ -23,11 +23,16 @@
 #[macro_use] extern crate log;
 extern crate jobsteal;
 
+extern crate rand;
+extern crate ordered_float;
+
 pub mod individual;
 pub mod simulation;
 pub mod simulation_builder;
 pub mod population;
 pub mod population_builder;
+pub mod select;
+pub mod test;
 
 pub use individual::Individual;
 pub use simulation::Simulation;
