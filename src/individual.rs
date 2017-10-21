@@ -19,7 +19,7 @@ use std::cmp::Ordering;
 /// A wrapper helper struct for the individuals.
 /// It does the book keeping of the fitness and the number of mutations this individual
 /// has to run in one iteration.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct IndividualWrapper<T: Individual> {
     /// The actual individual, user defined struct.
     pub individual: T,
@@ -44,7 +44,9 @@ impl<T: Individual> Eq for IndividualWrapper<T> {}
 /// Implement this for sorting
 impl<T: Individual> Ord for IndividualWrapper<T> {
     fn cmp(&self, other: &IndividualWrapper<T>) -> Ordering {
-        self.partial_cmp(other).expect("Fitness of Individual is NaN")
+        self.partial_cmp(other).expect(
+            "Fitness of Individual is NaN",
+        )
     }
 }
 
@@ -59,7 +61,7 @@ impl<T: Individual> PartialOrd for IndividualWrapper<T> {
 /// In order to share common data between all individuals use Arc. See TSP and OCR exmaples.
 ///
 /// TODO: add serialization, see https://github.com/willi-kappler/darwin-rs/issues/11
-pub trait Individual {
+pub trait Individual: Sized + Clone + Send {
     /// This method mutates the individual. Usually this is a cheap and easy to implement
     /// function. In order to improve the simulation, the user can make this function a bit
     /// "smarter". This is nicely shown in the tsp and tsp2 example. The tsp2 example contains
@@ -89,8 +91,21 @@ pub trait Individual {
     /// This method is called whenever a new fittest individual is found. It is usefull when you
     /// want to provide some additional information or do some statistics.
     /// It is optional and the default implementation does nothing.
-    fn new_fittest_found(&mut self) {
+    fn new_fittest_found(&mut self) {}
 
+    /// indicates whether an individual can cross-breed with another
+    fn can_crossover() -> bool {
+        false
+    }
+    /// perform a crossover with anoter Indivual; default implementation returns a copy of self
+    fn crossover(&mut self, other: &mut Self) -> Self {
+        let mine = self.calculate_fitness();
+        let yours = other.calculate_fitness();
+        if mine >= yours {
+            self.clone()
+        } else {
+            other.clone()
+        }
     }
 }
 
@@ -98,41 +113,69 @@ pub trait Individual {
 mod test {
     use super::{IndividualWrapper, Individual};
 
+    #[derive(Clone)]
     struct IndividualTest1;
 
     impl Individual for IndividualTest1 {
-        fn mutate(&mut self) {
-        }
+        fn mutate(&mut self) {}
 
         fn calculate_fitness(&mut self) -> f64 {
             0.0
         }
 
-        fn reset(&mut self) {
-
-        }
+        fn reset(&mut self) {}
     }
 
     #[test]
     fn compare1() {
-        let individual1 = IndividualWrapper{individual: IndividualTest1, fitness: 1.2, num_of_mutations: 21, id: 1};
-        let individual2 = IndividualWrapper{individual: IndividualTest1, fitness: 5.93, num_of_mutations: 7, id: 1};
+        let individual1 = IndividualWrapper {
+            individual: IndividualTest1,
+            fitness: 1.2,
+            num_of_mutations: 21,
+            id: 1,
+        };
+        let individual2 = IndividualWrapper {
+            individual: IndividualTest1,
+            fitness: 5.93,
+            num_of_mutations: 7,
+            id: 1,
+        };
 
         assert!(individual2 > individual1);
     }
 
     #[test]
     fn compare2() {
-        let individual1 = IndividualWrapper{individual: IndividualTest1, fitness: 3.78, num_of_mutations: 21, id: 1};
-        let individual2 = IndividualWrapper{individual: IndividualTest1, fitness: 7.12, num_of_mutations: 7, id: 1};
+        let individual1 = IndividualWrapper {
+            individual: IndividualTest1,
+            fitness: 3.78,
+            num_of_mutations: 21,
+            id: 1,
+        };
+        let individual2 = IndividualWrapper {
+            individual: IndividualTest1,
+            fitness: 7.12,
+            num_of_mutations: 7,
+            id: 1,
+        };
 
         assert!(individual1 < individual2);
     }
 
     #[test]
     fn compare3() {
-        let individual1 = IndividualWrapper{individual: IndividualTest1, fitness: 21.996, num_of_mutations: 11, id: 1};
-        let individual2 = IndividualWrapper{individual: IndividualTest1, fitness: 21.996, num_of_mutations: 34, id: 1};
+        let individual1 = IndividualWrapper {
+            individual: IndividualTest1,
+            fitness: 21.996,
+            num_of_mutations: 11,
+            id: 1,
+        };
+        let individual2 = IndividualWrapper {
+            individual: IndividualTest1,
+            fitness: 21.996,
+            num_of_mutations: 34,
+            id: 1,
+        };
 
         assert!(individual1 == individual2);
     }

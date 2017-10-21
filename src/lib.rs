@@ -19,8 +19,10 @@
 // For error-chain
 #![recursion_limit = "1024"]
 
-#[macro_use] extern crate error_chain;
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate error_chain;
+#[macro_use]
+extern crate log;
 extern crate jobsteal;
 
 extern crate rand;
@@ -36,6 +38,6 @@ pub mod test;
 
 pub use individual::Individual;
 pub use simulation::Simulation;
-pub use simulation_builder::{SimulationBuilder};
+pub use simulation_builder::SimulationBuilder;
 pub use population::Population;
-pub use population_builder::{PopulationBuilder};
+pub use population_builder::PopulationBuilder;

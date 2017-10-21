@@ -14,6 +14,7 @@
 //!
 
 use std;
+use std::fmt::Debug;
 
 use individual::{Individual, IndividualWrapper};
 use population::Population;
@@ -22,7 +23,7 @@ use population::Population;
 /// See builder pattern: https://en.wikipedia.org/wiki/Builder_pattern
 ///
 /// Maybe use phantom types, see https://github.com/willi-kappler/darwin-rs/issues/9
-pub struct PopulationBuilder<T: Individual> {
+pub struct PopulationBuilder<T: Individual + Send + Clone + Debug> {
     /// The actual simulation
     population: Population<T>,
 }
@@ -35,7 +36,7 @@ error_chain! {
 }
 
 /// This implementation contains all the helper method to build (configure) a valid population.
-impl<T: Individual + Clone> PopulationBuilder<T> {
+impl<T: Individual + Clone + Send + Debug> PopulationBuilder<T> {
     /// Start with this method, it must always be called as the first one.
     /// It creates a default population with some dummy (but invalid) values.
     pub fn new() -> PopulationBuilder<T> {
@@ -49,8 +50,8 @@ impl<T: Individual + Clone> PopulationBuilder<T> {
                 reset_limit_increment: 1000,
                 reset_counter: 0,
                 id: 1,
-                fitness_counter: 0
-            }
+                fitness_counter: 0,
+            },
         }
     }
 
@@ -107,10 +108,12 @@ impl<T: Individual + Clone> PopulationBuilder<T> {
         // TODO: better error handling
         assert!(self.population.population.len() == mutation_rate.len());
 
-        for (individual, mutation_rate) in self.population
-            .population
-            .iter_mut()
-            .zip(mutation_rate.into_iter()) {
+        for (individual, mutation_rate) in
+            self.population.population.iter_mut().zip(
+                mutation_rate
+                    .into_iter(),
+            )
+        {
             individual.num_of_mutations = mutation_rate;
         }
 
@@ -157,14 +160,15 @@ impl<T: Individual + Clone> PopulationBuilder<T> {
     /// where found.
     pub fn finalize(self) -> Result<Population<T>> {
         match self.population {
-            Population { num_of_individuals: 0...2, ..} => {
+            Population { num_of_individuals: 0...2, .. } => {
                 Err(ErrorKind::IndividualsTooLow.into())
             }
-            Population { reset_limit_start: start,
-                         reset_limit_end: end, ..} if (end > 0) && (start >= end) => {
-                Err(ErrorKind::LimitEndTooLow.into())
-            }
-            _ => Ok(self.population)
+            Population {
+                reset_limit_start: start,
+                reset_limit_end: end,
+                ..
+            } if (end > 0) && (start >= end) => Err(ErrorKind::LimitEndTooLow.into()),
+            _ => Ok(self.population),
         }
     }
 }

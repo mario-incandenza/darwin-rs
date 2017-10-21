@@ -14,16 +14,17 @@
 //!
 
 use std;
-
+use std::fmt::Debug;
 use simulation::{Simulation, SimulationType, SimulationResult};
-use individual::{Individual};
+use individual::Individual;
 use population::Population;
 
 /// This is a helper struct in order to build (configure) a valid simulation.
 /// See builder pattern: https://en.wikipedia.org/wiki/Builder_pattern
 ///
 /// Maybe use phantom types, see https://github.com/willi-kappler/darwin-rs/issues/9
-pub struct SimulationBuilder<T: Individual + Send + Sync> {
+#[derive(Debug, Clone)]
+pub struct SimulationBuilder<T: Individual + Send + Sync + Debug + Clone> {
     /// The actual simulation.
     simulation: Simulation<T>,
 }
@@ -35,7 +36,7 @@ error_chain! {
 }
 
 /// This implementation contains all the helper method to build (configure) a valid simulation.
-impl<T: Individual + Send + Sync> SimulationBuilder<T> {
+impl<T: Individual + Send + Sync + Clone + Debug> SimulationBuilder<T> {
     /// Start with this method, it must always be called as the first one.
     /// It creates a default simulation with some dummy (but invalid) values.
     pub fn new() -> SimulationBuilder<T> {
@@ -49,14 +50,14 @@ impl<T: Individual + Send + Sync> SimulationBuilder<T> {
                     improvement_factor: std::f64::MAX,
                     original_fitness: std::f64::MAX,
                     fittest: Vec::new(),
-                    iteration_counter: 0
+                    iteration_counter: 0,
                 },
                 share_fittest: false,
                 num_of_global_fittest: 10,
                 output_every: 10,
                 output_every_counter: 0,
                 share_every: 10,
-                share_counter: 0
+                share_counter: 0,
             },
         }
     }
@@ -95,7 +96,10 @@ impl<T: Individual + Send + Sync> SimulationBuilder<T> {
     }
 
     /// Add multiple populations to the simulation.
-    pub fn add_multiple_populations(mut self, multiple_populations: Vec<Population<T>>) -> SimulationBuilder<T> {
+    pub fn add_multiple_populations(
+        mut self,
+        multiple_populations: Vec<Population<T>>,
+    ) -> SimulationBuilder<T> {
         for population in multiple_populations {
             self.simulation.habitat.push(population);
         }

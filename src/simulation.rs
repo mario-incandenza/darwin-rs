@@ -14,14 +14,15 @@
 //!
 
 use std::time::Instant;
-
+use std::fmt::Debug;
 use jobsteal::make_pool;
 
 use individual::{Individual, IndividualWrapper};
 use population::Population;
+use select::Selector;
 
 /// The `SimulationType` type. Speficies the criteria on how a simulation should stop.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum SimulationType {
     /// Finish the simulation when a number of iteration has been reached.
     EndIteration(u32),
@@ -36,9 +37,10 @@ pub enum SimulationType {
     EndFactor(f64),
 }
 
+#[derive(Debug, Clone)]
 /// The `Simulation` type. Contains all the information / configuration for the simulation to run.
 /// Use the `SimulationBuilder` in order to create a simulation.
-pub struct Simulation<T: Individual + Send + Sync> {
+pub struct Simulation<T: Individual + Send + Sync + Debug> {
     /// How should the simulation stop ?
     pub type_of_simulation: SimulationType,
     /// The number of threads to use to speed up calculation.
@@ -72,14 +74,14 @@ pub struct Simulation<T: Individual + Send + Sync> {
     pub share_every: u32,
     /// Counter that will be incremented every iteration. If share_counter >= share_every then the
     /// most fittest individual is shared between all the populations.
-    pub share_counter: u32
+    pub share_counter: u32,
 }
 
 /// The `SimulationResult` Type. Holds the simulation results:
 /// All the fittest individuals, the `improvement_factor`, the `iteration_counter` and the
 /// `original_fitness`.
-#[derive(Clone)]
-pub struct SimulationResult<T: Individual + Send + Sync> {
+#[derive(Clone, Debug)]
+pub struct SimulationResult<T: Individual + Send + Sync + Clone + Debug> {
     /// The current improvement factor, that means the ration between the very first and the
     /// current fitness.
     pub improvement_factor: f64,
@@ -89,16 +91,20 @@ pub struct SimulationResult<T: Individual + Send + Sync> {
     /// more fittest individual is found and pushed into the first position (index 0).
     pub fittest: Vec<IndividualWrapper<T>>,
     /// How many iteration did the simulation run.
-    pub iteration_counter: u32
+    pub iteration_counter: u32,
 }
 
 /// This implements the the functions `run`, `print_fitness` and `update_results` (private)
 /// for the struct `Simulation`.
-impl<T: Individual + Send + Sync + Clone> Simulation<T> {
+impl<T: Individual + Send + Sync + Clone + Debug> Simulation<T> {
     /// This actually runs the simulation.
     /// Depending on the type of simulation (`EndIteration`, `EndFactor` or `EndFitness`)
     /// the iteration loop will check for the stop condition accordingly.
-    pub fn run(&mut self) {
+    pub fn run<S>(&mut self, selector: &S)
+    where
+        S: Selector<T>,
+    {
+
         // Initialize timer
         let start_time = Instant::now();
 
@@ -118,63 +124,64 @@ impl<T: Individual + Send + Sync + Clone> Simulation<T> {
             improvement_factor: 0.0,
             original_fitness: self.habitat[0].population[0].fitness,
             fittest: vec![self.habitat[0].population[0].clone()],
-            iteration_counter: 0
+            iteration_counter: 0,
         };
 
-        info!("original_fitness: {}", self.simulation_result.original_fitness);
+        info!(
+            "original_fitness: {}",
+            self.simulation_result.original_fitness
+        );
 
         // Check which type of simulation to run.
         match self.type_of_simulation {
             SimulationType::EndIteration(end_iteration) => {
                 for _ in 0..end_iteration {
-                    pool.scope(|scope|
-                        for population in &mut self.habitat {
-                            scope.submit(move || { population.run_body() });
-                        });
+                    pool.scope(|scope| for population in &mut self.habitat {
+                        scope.submit(move || population.run_body(selector));
+                    });
 
                     self.update_results();
-                };
+                }
                 self.simulation_result.iteration_counter = end_iteration;
             }
 
             SimulationType::EndFactor(end_factor) => {
                 loop {
                     iteration_counter += 1;
-                    pool.scope(|scope|
-                        for population in &mut self.habitat {
-                            scope.submit(move || { population.run_body() });
-                        });
+                    pool.scope(|scope| for population in &mut self.habitat {
+                        scope.submit(move || population.run_body(selector));
+                    });
 
                     self.update_results();
 
                     if self.simulation_result.improvement_factor <= end_factor {
                         break;
                     }
-                };
+                }
                 self.simulation_result.iteration_counter = iteration_counter;
             }
 
             SimulationType::EndFitness(end_fitness) => {
                 loop {
                     iteration_counter += 1;
-                    pool.scope(|scope|
-                        for population in &mut self.habitat {
-                            scope.submit(move || { population.run_body() });
-                        });
+                    pool.scope(|scope| for population in &mut self.habitat {
+                        scope.submit(move || population.run_body(selector));
+                    });
 
                     self.update_results();
 
                     if self.simulation_result.fittest[0].fitness <= end_fitness {
                         break;
                     }
-                };
+                }
                 self.simulation_result.iteration_counter = iteration_counter;
             }
         } // End of match
 
         let elapsed = start_time.elapsed();
 
-        self.total_time_in_ms = elapsed.as_secs() as f64 * 1000.0 + elapsed.subsec_nanos() as f64 / 1000_000.0;
+        self.total_time_in_ms = elapsed.as_secs() as f64 * 1000.0 +
+            elapsed.subsec_nanos() as f64 / 1000_000.0;
     }
 
     /// This is a helper function that the user can call after the simulation stops in order to
@@ -182,8 +189,12 @@ impl<T: Individual + Send + Sync + Clone> Simulation<T> {
     /// improvement.
     pub fn print_fitness(&self) {
         for wrapper in &self.simulation_result.fittest {
-            info!("fitness: {}, num_of_mutations: {}, population: {}",
-                     wrapper.fitness, wrapper.num_of_mutations, wrapper.id);
+            info!(
+                "fitness: {}, num_of_mutations: {}, population: {}",
+                wrapper.fitness,
+                wrapper.num_of_mutations,
+                wrapper.id
+            );
         }
     }
 
@@ -201,13 +212,23 @@ impl<T: Individual + Send + Sync + Clone> Simulation<T> {
         for population in &mut self.habitat {
             if population.population[0].fitness < self.simulation_result.fittest[0].fitness {
                 new_fittest_found = true;
-                self.simulation_result.fittest.insert(0, population.population[0].clone());
+                self.simulation_result.fittest.insert(
+                    0,
+                    population.population[0]
+                        .clone(),
+                );
                 // See https://github.com/willi-kappler/darwin-rs/issues/12
-                self.simulation_result.fittest.truncate(self.num_of_global_fittest);
+                self.simulation_result.fittest.truncate(
+                    self.num_of_global_fittest,
+                );
                 population.fitness_counter += 1;
                 if self.output_every_counter >= self.output_every {
-                    info!("new fittest: fitness: {}, population id: {}, counter: {}", population.population[0].fitness,population.id,
-                        population.fitness_counter);
+                    info!(
+                        "new fittest: fitness: {}, population id: {}, counter: {}",
+                        population.population[0].fitness,
+                        population.id,
+                        population.fitness_counter
+                    );
                     self.output_every_counter = 0
                 }
                 // Call methond `new_fittest_found` of the newly found fittest individual.
@@ -226,8 +247,7 @@ impl<T: Individual + Send + Sync + Clone> Simulation<T> {
             self.share_counter = 0;
         }
 
-        self.simulation_result.improvement_factor =
-            self.simulation_result.fittest[0].fitness /
+        self.simulation_result.improvement_factor = self.simulation_result.fittest[0].fitness /
             self.simulation_result.original_fitness;
 
     }

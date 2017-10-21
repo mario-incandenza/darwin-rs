@@ -28,7 +28,7 @@ mod max;
 use std::cmp::PartialOrd;
 use std::cmp::Ordering;
 
-use ::Individual;
+use Individual;
 use std::fmt::Debug;
 
 pub use self::max::MaximizeSelector;
@@ -38,9 +38,11 @@ pub use self::max::MaximizeSelector;
 /// `Parents` come in a `Vec` of two `T`'s.
 pub type Parents<T> = Vec<(T, T)>;
 
+
 /// A `Selector` can select `Parents` for a new iteration of a `Simulation`.
-pub trait Selector<I>: Debug
-    where I: Individual
+pub trait Selector<I>: Debug + Clone + Sync
+where
+    I: Individual + Send + Clone + Sized,
 {
     /// Select elements from a `population` for breeding.
     ///
@@ -48,5 +50,5 @@ pub trait Selector<I>: Debug
     /// `Err(String)`, containing a message indicating the error.
     ///
     /// Otherwise it contains a vector of parent pairs wrapped in `Ok`.
-    fn select(&self, population: &[I]) -> Result<Parents<I>, String>;
+    fn select(&self, population: &[I]) -> Result<Parents<I>, ()>;
 }

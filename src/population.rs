@@ -13,12 +13,16 @@
 //!
 //!
 
+use std::fmt::Debug;
+
 use individual::{Individual, IndividualWrapper};
+use select::Selector;
+
 
 /// The `Population` type. Contains the actual individuals (through a wrapper) and informations
 /// like the `reset_limit`. Use the `PopulationBuilder` in your main program to create populations.
-#[derive(Clone)]
-pub struct Population<T: Individual> {
+#[derive(Clone, Debug)]
+pub struct Population<T: Individual + Send + Clone + Debug> {
     /// The number of individuals for this population.
     pub num_of_individuals: u32,
     /// The actual population (vector of individuals).
@@ -45,10 +49,10 @@ pub struct Population<T: Individual> {
     pub id: u32,
     /// Count how often this population has created (found) the fittest individual. This may help
     /// you to fine tune the parameters for the population and the simulation in general.
-    pub fitness_counter: u64
+    pub fitness_counter: u64,
 }
 
-impl<T: Individual + Send + Sync + Clone> Population<T> {
+impl<T: Individual + Send + Sync + Clone + Debug> Population<T> {
     /// Just calculates the fitness for each individual.
     /// Usually this is the most computational expensive operation, so optimize the
     /// `calculate_fitness` method of your data structure ;-)
@@ -82,7 +86,11 @@ impl<T: Individual + Send + Sync + Clone> Population<T> {
     /// fittest individual is replaced.
     ///
     /// 8. Calculate the new improvement factor and prepare for the next iteration.
-    pub fn run_body(&mut self) {
+    pub fn run_body<S>(&mut self, selector: &S)
+    where
+        S: Selector<T>,
+    {
+
         // Is reset limit enabled ?
         if self.reset_limit_end > 0 {
             self.reset_counter += 1;
@@ -92,10 +100,19 @@ impl<T: Individual + Send + Sync + Clone> Population<T> {
                 self.reset_limit += self.reset_limit_increment;
                 if self.reset_limit >= self.reset_limit_end {
                     self.reset_limit = self.reset_limit_start;
-                    info!("reset_limit reset to reset_limit_start: {}, id: {}", self.reset_limit_start, self.id);
+                    info!(
+                        "reset_limit reset to reset_limit_start: {}, id: {}",
+                        self.reset_limit_start,
+                        self.id
+                    );
                 }
                 self.reset_counter = 0;
-                info!("new reset_limit: {}, id: {}, counter: {}", self.reset_limit, self.id, self.fitness_counter);
+                info!(
+                    "new reset_limit: {}, id: {}, counter: {}",
+                    self.reset_limit,
+                    self.id,
+                    self.fitness_counter
+                );
 
                 // Kill all individuals since we are most likely stuck in a local minimum.
                 // Why is it so ? Because the simulation is still running and the exit criteria
@@ -124,6 +141,37 @@ impl<T: Individual + Send + Sync + Clone> Population<T> {
         // Append original (unmutated) population to new (mutated) population.
         self.population.extend(orig_population.iter().cloned());
 
+        // ** start cross-over code from RsGenetic
+        // Perform selection
+        if T::can_crossover() {
+            let parents: Vec<(T, T)> = selector
+                .select(
+                    self.population
+                        .iter()
+                        .map(|w| w.individual.clone())
+                        .collect::<Vec<T>>()
+                        .as_slice(),
+                )
+                .expect("select failed");
+
+            // Create children from the selected parents and mutate them.
+
+            for (mut a, mut b) in parents {
+                let mut hyb = a.crossover(&mut b);
+                let fit = hyb.calculate_fitness();
+                self.population.push( IndividualWrapper {
+                    individual: hyb,
+                    fitness: fit,
+                    num_of_mutations: 1,
+                    id: self.id,
+                });
+            }
+
+            // Kill off parts of the population at random to make room for the children
+            //self.kill_off(children.len());
+            // ** end cross-over code from RsGenetic
+        }
+
         // Sort by fitness
         // Use random choice, see https://github.com/willi-kappler/darwin-rs/issues/7
         self.population.sort();
@@ -132,9 +180,9 @@ impl<T: Individual + Send + Sync + Clone> Population<T> {
         self.population.truncate(self.num_of_individuals as usize);
 
         // Restore original number of mutation rate, since these will be lost because of sorting.
-        for (individual, orig_individual) in self.population
-            .iter_mut()
-            .zip(orig_population.iter()) {
+        for (individual, orig_individual) in
+            self.population.iter_mut().zip(orig_population.iter())
+        {
             individual.num_of_mutations = orig_individual.num_of_mutations;
         }
     }
