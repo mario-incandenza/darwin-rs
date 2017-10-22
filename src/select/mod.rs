@@ -50,5 +50,5 @@ where
     /// `Err(String)`, containing a message indicating the error.
     ///
     /// Otherwise it contains a vector of parent pairs wrapped in `Ok`.
-    fn select(&self, population: &[I]) -> Result<Parents<I>, ()>;
+    fn select(&self, population: &[I]) -> Result<Parents<I>, String>;
 }

@@ -39,13 +39,12 @@ impl<I> Selector<I> for MaximizeSelector
 where
     I: Individual + Clone + Send,
 {
-    fn select(&self, population: &[I]) -> Result<Parents<I>, ()> {
+    fn select(&self, population: &[I]) -> Result<Parents<I>, String> {
         if self.count == 0 || self.count % 2 != 0 || self.count * 2 >= population.len() {
-            panic!(format!(
-                "Invalid parameter `count`: {}. Should be larger than zero, a \
-                            multiple of two and less than half the population size.",
-                self.count
-            ));
+            return Err(format!("Invalid parameter `count`: {}. Should be larger than zero, a \
+                                multiple of two and less than half the population size.",
+                               self.count
+            ))
         }
 
         let mut scored = Vec::new();
