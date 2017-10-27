@@ -125,6 +125,8 @@ impl<T: Individual + Send + Sync + Clone + Debug> Population<T> {
             }
         }
 
+        println!("-- orig pop size: {}", self.population.len());
+
         // Keep original population.
         let orig_population = self.population.clone();
 
@@ -141,9 +143,12 @@ impl<T: Individual + Send + Sync + Clone + Debug> Population<T> {
         // Append original (unmutated) population to new (mutated) population.
         self.population.extend(orig_population.iter().cloned());
 
+        println!("-- mutated pop size: {}", self.population.len());
+
         // ** start cross-over code from RsGenetic
         // Perform selection
-        if T::can_crossover() {
+        if T::CAN_CROSSOVER {
+            println!("@@ crossing over w/ population of {}", self.population.len());
             let parents: Vec<(T, T)> = selector
                 .select(
                     self.population
@@ -159,6 +164,7 @@ impl<T: Individual + Send + Sync + Clone + Debug> Population<T> {
             for (mut a, mut b) in parents {
                 let mut hyb = a.crossover(&mut b);
                 let fit = hyb.calculate_fitness();
+                println!("@@ hyb fit: {} x {} -> {}", a.calculate_fitness(), b.calculate_fitness(), fit);
                 self.population.push( IndividualWrapper {
                     individual: hyb,
                     fitness: fit,
@@ -172,12 +178,17 @@ impl<T: Individual + Send + Sync + Clone + Debug> Population<T> {
             // ** end cross-over code from RsGenetic
         }
 
+        println!("@@ after crossing over: {}", self.population.len());
+
         // Sort by fitness
         // Use random choice, see https://github.com/willi-kappler/darwin-rs/issues/7
         self.population.sort();
 
         // Reduce population to original length.
         self.population.truncate(self.num_of_individuals as usize);
+
+        println!("@@ now we've got {}, fitnesses: {:?}", self.population.len(),
+                 [self.population[0].fitness, self.population[1].fitness, self.population[2].fitness]);
 
         // Restore original number of mutation rate, since these will be lost because of sorting.
         for (individual, orig_individual) in

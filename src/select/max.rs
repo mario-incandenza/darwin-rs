@@ -53,10 +53,13 @@ where
             let score = ind.calculate_fitness();
             scored.push((score, ind));
         }
-
+        println!("@@ {} scored inds", scored.len());
         scored.sort_by(|ref x, ref y| {
-            y.0.partial_cmp(&x.0).unwrap_or(Ordering::Less)
+            x.0.partial_cmp(&y.0).unwrap_or(Ordering::Less)
         });
+
+        println!("@@ sort -> first few: {:?}", [scored[0].0, scored[1].0, scored[2].0,
+                                                scored[ scored.len() - 1 ].0]);
 
         let trunc: Vec<I> = scored
             .into_iter()
@@ -64,13 +67,14 @@ where
             .map(|(_, ind)| ind)
             .collect();
 
+        println!("@@ after trunc, {}", trunc.len());
         let mut index = 0;
         let mut result: Parents<I> = Vec::new();
         while index < trunc.len() {
             result.push((trunc[index].clone(), trunc[index + 1].clone()));
             index += 2;
         }
-
+        println!("@@ {} parents", result.len());
         Ok(result)
     }
 }

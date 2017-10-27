@@ -62,6 +62,10 @@ impl<T: Individual> PartialOrd for IndividualWrapper<T> {
 ///
 /// TODO: add serialization, see https://github.com/willi-kappler/darwin-rs/issues/11
 pub trait Individual: Sized + Clone + Send {
+
+    /// indicates whether an individual can cross-breed with another
+    const CAN_CROSSOVER: bool = false;
+
     /// This method mutates the individual. Usually this is a cheap and easy to implement
     /// function. In order to improve the simulation, the user can make this function a bit
     /// "smarter". This is nicely shown in the tsp and tsp2 example. The tsp2 example contains
@@ -93,10 +97,6 @@ pub trait Individual: Sized + Clone + Send {
     /// It is optional and the default implementation does nothing.
     fn new_fittest_found(&mut self) {}
 
-    /// indicates whether an individual can cross-breed with another
-    fn can_crossover() -> bool {
-        false
-    }
     /// perform a crossover with anoter Indivual; default implementation returns a copy of self
     fn crossover(&mut self, other: &mut Self) -> Self {
         let mine = self.calculate_fitness();
